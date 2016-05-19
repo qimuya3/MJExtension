@@ -205,8 +205,134 @@ static NSNumberFormatter *numberFormatter_;
     return [self mj_objectWithKeyValues:keyValues context:nil];
 }
 
+#pragma mark - 去掉nil字段
+#if 1  // qmy3
+//删除字典里的null值
+- (id)deleteEmptyAll:(id)dicOrArr
+{
+    if ([dicOrArr isKindOfClass:[NSDictionary class]])
+    {
+        NSDictionary *changeDic = [self deleteEmpty:dicOrArr];
+        return changeDic;
+        
+    }
+    else if ([dicOrArr isKindOfClass:[NSArray class]])
+    {
+        NSArray *changeArr = [self deleteEmptyArr:dicOrArr];
+        return changeArr;
+    }
+    
+    return dicOrArr;
+}
+
+//删除字典里的null值
+- (NSDictionary *)deleteEmpty:(NSDictionary *)dic
+{
+    NSMutableDictionary *mdic = [[NSMutableDictionary alloc] initWithDictionary:dic];
+    NSMutableArray *set = [[NSMutableArray alloc] init];
+    NSMutableDictionary *dicSet = [[NSMutableDictionary alloc] init];
+    NSMutableDictionary *arrSet = [[NSMutableDictionary alloc] init];
+    for (id obj in mdic.allKeys)
+    {
+        id value = mdic[obj];
+        if ([value isKindOfClass:[NSDictionary class]])
+        {
+            NSDictionary *changeDic = [self deleteEmpty:value];
+            [dicSet setObject:changeDic forKey:obj];
+        }
+        else if ([value isKindOfClass:[NSArray class]])
+        {
+            NSArray *changeArr = [self deleteEmptyArr:value];
+            [arrSet setObject:changeArr forKey:obj];
+        }
+        else
+        {
+            if ([value isKindOfClass:[NSNull class]]) {
+                [set addObject:obj];
+            }
+        }
+    }
+    for (id obj in set)
+    {
+        mdic[obj] = @"";
+    }
+    for (id obj in dicSet.allKeys)
+    {
+        mdic[obj] = dicSet[obj];
+    }
+    for (id obj in arrSet.allKeys)
+    {
+        mdic[obj] = arrSet[obj];
+    }
+    
+    return mdic;
+}
+
+//删除数组中的null值
+- (NSArray *)deleteEmptyArr:(NSArray *)arr
+{
+    NSMutableArray *marr = [NSMutableArray arrayWithArray:arr];
+    NSMutableArray *set = [[NSMutableArray alloc] init];
+    NSMutableDictionary *dicSet = [[NSMutableDictionary alloc] init];
+    NSMutableDictionary *arrSet = [[NSMutableDictionary alloc] init];
+    
+    for (id obj in marr)
+    {
+        if ([obj isKindOfClass:[NSDictionary class]])
+        {
+            NSDictionary *changeDic = [self deleteEmpty:obj];
+            NSInteger index = [marr indexOfObject:obj];
+            [dicSet setObject:changeDic forKey:@(index)];
+        }
+        else if ([obj isKindOfClass:[NSArray class]])
+        {
+            NSArray *changeArr = [self deleteEmptyArr:obj];
+            NSInteger index = [marr indexOfObject:obj];
+            [arrSet setObject:changeArr forKey:@(index)];
+        }
+        else
+        {
+            if ([obj isKindOfClass:[NSNull class]]) {
+                NSInteger index = [marr indexOfObject:obj];
+                [set addObject:@(index)];
+            }
+        }
+    }
+    for (id obj in set)
+    {
+        marr[(int)obj] = @"";
+    }
+    for (id obj in dicSet.allKeys)
+    {
+        int index = [obj intValue];
+        marr[index] = dicSet[obj];
+    }
+    for (id obj in arrSet.allKeys)
+    {
+        int index = [obj intValue];
+        marr[index] = arrSet[obj];
+    }
+    return marr;
+}
+#endif
+
 + (instancetype)mj_objectWithKeyValues:(id)keyValues context:(NSManagedObjectContext *)context
 {
+#if 1
+    // 获得JSON对象
+    keyValues = [keyValues mj_JSONObject];
+    MJExtensionAssertError([keyValues isKindOfClass:[NSDictionary class]], nil, [self class], @"keyValues参数不是一个字典");
+    
+#pragma mark - 去掉nil字段 // qmy3 删除nil value
+    keyValues = [self deleteEmptyAll:keyValues];
+    
+    if ([self isSubclassOfClass:[NSManagedObject class]] && context) {
+        return [[NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass(self) inManagedObjectContext:context] mj_setKeyValues:keyValues context:context];
+    }
+    return [[[self alloc] init] mj_setKeyValues:keyValues];
+    
+#else
+    
     // 获得JSON对象
     keyValues = [keyValues mj_JSONObject];
     MJExtensionAssertError([keyValues isKindOfClass:[NSDictionary class]], nil, [self class], @"keyValues参数不是一个字典");
@@ -215,6 +341,7 @@ static NSNumberFormatter *numberFormatter_;
         return [[NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass(self) inManagedObjectContext:context] mj_setKeyValues:keyValues context:context];
     }
     return [[[self alloc] init] mj_setKeyValues:keyValues];
+#endif
 }
 
 + (instancetype)mj_objectWithFilename:(NSString *)filename
